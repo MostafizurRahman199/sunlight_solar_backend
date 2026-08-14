@@ -216,8 +216,8 @@ export class EwayService {
         CardDetails: {
           Name: dto.cardDetails.name,
           Number: dto.cardDetails.number,
-          ExpiryMonth: dto.cardDetails.expiryMonth,
-          ExpiryYear: dto.cardDetails.expiryYear,
+          ExpiryMonth: dto.cardDetails.expiryMonth?.padStart(2, '0') || '02',
+          ExpiryYear: dto.cardDetails.expiryYear?.slice(-2) || '28',
           CVN: dto.cardDetails.cvn,
         },
       },
