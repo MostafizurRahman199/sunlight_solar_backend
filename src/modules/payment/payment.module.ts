@@ -6,12 +6,13 @@ import { PaymentController } from './payment.controller';
 import { PaymentService } from './payment.service';
 import { EwayService } from './providers/eway.service';
 import { Payment } from './entities/payment.entity';
+import { User } from '../user/entities/user.entity';
 
 @Module({
   imports: [
     HttpModule,
     ConfigModule,
-    TypeOrmModule.forFeature([Payment]),
+    TypeOrmModule.forFeature([Payment, User]),
   ],
   controllers: [PaymentController],
   providers: [PaymentService, EwayService],

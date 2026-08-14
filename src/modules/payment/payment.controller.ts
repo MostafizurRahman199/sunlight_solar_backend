@@ -54,7 +54,7 @@ export class PaymentController {
   @UseGuards(AuthGuard('jwt'))
   @Get('my-history')
   async getMyPaymentHistory(@Req() req: any) {
-    return await this.paymentService.getUserPayments(req.user.id);
+    return await this.paymentService.getUserPayments(req.user.id, req.user.email);
   }
 
   /**

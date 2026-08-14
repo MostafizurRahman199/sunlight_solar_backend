@@ -6,6 +6,7 @@ import { CreateAccessCodeDto } from './dto/create-access-code.dto';
 import { DirectPaymentDto } from './dto/direct-payment.dto';
 import { RefundPaymentDto } from './dto/refund-payment.dto';
 import { Payment, PaymentStatus } from './entities/payment.entity';
+import { User } from '../user/entities/user.entity';
 
 @Injectable()
 export class PaymentService {
@@ -15,6 +16,8 @@ export class PaymentService {
     private readonly ewayService: EwayService,
     @InjectRepository(Payment)
     private readonly paymentRepository: Repository<Payment>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
   /**
@@ -30,12 +33,26 @@ export class PaymentService {
   }
 
   /**
+   * Helper to resolve userId by explicit ID or customer email
+   */
+  private async resolveUserId(explicitUserId?: string, email?: string): Promise<string | undefined> {
+    if (explicitUserId) return explicitUserId;
+    if (email) {
+      const existingUser = await this.userRepository.findOne({ where: { email } });
+      if (existingUser) return existingUser.id;
+    }
+    return undefined;
+  }
+
+  /**
    * Initialize checkout session / generate eWay Access Code and save initial PENDING payment in DB
    */
   async createPaymentSession(dto: CreateAccessCodeDto, userId?: string) {
+    const targetUserId = await this.resolveUserId(userId, dto.customer?.email);
+
     const formattedAmount = (dto.amount / 100).toFixed(2);
     this.logger.log(
-      `💳 [PAYMENT INITIATED] Customer: ${dto.customer.firstName} ${dto.customer.lastName} (${dto.customer.email}) | Amount: $${formattedAmount} ${dto.currencyCode || 'AUD'} | Invoice: ${dto.invoiceNumber || 'Auto-Generated'} | UserID: ${userId || 'Guest'}`,
+      `💳 [PAYMENT INITIATED] Customer: ${dto.customer.firstName} ${dto.customer.lastName} (${dto.customer.email}) | Amount: $${formattedAmount} ${dto.currencyCode || 'AUD'} | Invoice: ${dto.invoiceNumber || 'Auto-Generated'} | UserID: ${targetUserId || 'Guest'}`,
     );
 
     const session = await this.ewayService.createAccessCode(dto);
@@ -57,7 +74,7 @@ export class PaymentService {
       customerState: dto.customer.state,
       customerPostcode: dto.customer.postalCode,
       paymentMethod: 'eway_shared',
-      userId: userId || undefined,
+      userId: targetUserId || undefined,
     });
 
     await this.paymentRepository.save(payment);
@@ -88,8 +105,18 @@ export class PaymentService {
       payment.status = newStatus;
       payment.transactionId = result.TransactionID?.toString() || payment.transactionId;
       payment.rawResponse = result;
+      
+      // Auto-link userId if missing but customer email matches a user
+      if (!payment.userId && payment.customerEmail) {
+        const matchedUser = await this.userRepository.findOne({ where: { email: payment.customerEmail } });
+        if (matchedUser) payment.userId = matchedUser.id;
+      }
+      
       await this.paymentRepository.save(payment);
     } else {
+      const customerEmail = result.Customer?.Email || 'guest@sunlitesolar.com.au';
+      const matchedUser = await this.userRepository.findOne({ where: { email: customerEmail } });
+
       payment = this.paymentRepository.create({
         accessCode,
         transactionId: result.TransactionID?.toString(),
@@ -97,10 +124,11 @@ export class PaymentService {
         currency: 'AUD',
         status: newStatus,
         invoiceNumber: result.InvoiceNumber || `INV-${Date.now()}`,
-        customerEmail: result.Customer?.Email || 'guest@sunlitesolar.com.au',
+        customerEmail,
         customerFirstName: result.Customer?.FirstName || 'Customer',
         customerLastName: result.Customer?.LastName || '',
         paymentMethod: 'eway_shared',
+        userId: matchedUser?.id,
         rawResponse: result,
       });
       await this.paymentRepository.save(payment);
@@ -131,9 +159,11 @@ export class PaymentService {
    * Process Direct Card Payment & save to DB
    */
   async processDirectCardPayment(dto: DirectPaymentDto, userId?: string) {
+    const targetUserId = await this.resolveUserId(userId, dto.customer?.email);
+
     const formattedAmount = (dto.amount / 100).toFixed(2);
     this.logger.log(
-      `💳 [DIRECT CARD PAYMENT SUBMITTED] Customer: ${dto.customer.email} | Amount: $${formattedAmount} AUD | UserID: ${userId || 'Guest'}`,
+      `💳 [DIRECT CARD PAYMENT SUBMITTED] Customer: ${dto.customer.email} | Amount: $${formattedAmount} AUD | UserID: ${targetUserId || 'Guest'}`,
     );
 
     const result = await this.ewayService.processDirectPayment(dto);
@@ -158,7 +188,7 @@ export class PaymentService {
       customerState: dto.customer.state,
       customerPostcode: dto.customer.postalCode,
       paymentMethod: 'eway_direct',
-      userId: userId || undefined,
+      userId: targetUserId || undefined,
       rawResponse: result,
     });
 
@@ -219,11 +249,16 @@ export class PaymentService {
   }
 
   /**
-   * Fetch payment history for a logged in user
+   * Fetch payment history for a logged in user (by userId or customerEmail)
    */
-  async getUserPayments(userId: string): Promise<Payment[]> {
+  async getUserPayments(userId: string, email?: string): Promise<Payment[]> {
+    const whereConditions: any[] = [{ userId }];
+    if (email) {
+      whereConditions.push({ customerEmail: email });
+    }
+
     return await this.paymentRepository.find({
-      where: { userId },
+      where: whereConditions,
       order: { createdAt: 'DESC' },
     });
   }
