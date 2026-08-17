@@ -145,10 +145,12 @@ export class EwayService {
 
         const rawAccessCode = data.AccessCode;
         const sharedUrl =
+          (data as any).FormActionURL ||
+          (data as any).FormActionUrl ||
           data.FormUrl ||
           data.SharedPaymentUrl ||
           (data as any).SharedPageUrl ||
-          `${defaultSharedPageHost}/sharedpage/sharedpayment?AccessCode=${rawAccessCode}`;
+          `${defaultSharedPageHost}/AccessCode/${rawAccessCode}`;
 
         this.logger.log(`🔗 [EWAY FINAL SHARED FORM URL]: ${sharedUrl}`);
 
