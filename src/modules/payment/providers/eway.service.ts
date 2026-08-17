@@ -127,7 +127,7 @@ export class EwayService {
 
     const executeRequest = async (attempt = 1): Promise<IEwayAccessCodeResponse> => {
       try {
-        const endpoint = `${this.ewayConfig.baseUrl}/AccessCodes`;
+        const endpoint = `${this.ewayConfig.baseUrl}/AccessCodesShared`;
 
         const response = await firstValueFrom(
           this.httpService.post<IEwayAccessCodeResponse>(endpoint, payload, {
@@ -145,12 +145,10 @@ export class EwayService {
 
         const rawAccessCode = data.AccessCode;
         const sharedUrl =
-          (data as any).FormActionURL ||
-          (data as any).FormActionUrl ||
-          data.FormUrl ||
           data.SharedPaymentUrl ||
+          data.FormUrl ||
           (data as any).SharedPageUrl ||
-          `${defaultSharedPageHost}/AccessCode/${rawAccessCode}`;
+          `${defaultSharedPageHost}/sharedpage/sharedpayment?AccessCode=${rawAccessCode}`;
 
         this.logger.log(`🔗 [EWAY FINAL SHARED FORM URL]: ${sharedUrl}`);
 
