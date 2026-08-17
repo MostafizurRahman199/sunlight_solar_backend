@@ -31,6 +31,11 @@ export class PaymentController {
   @Post('create-access-code')
   async createAccessCode(@Body() dto: CreateAccessCodeDto, @Req() req: any) {
     const userId = req.user?.id; // Optional if bearer token passed
+    const clientIp =
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+      req.socket?.remoteAddress ||
+      '1.1.1.1';
+    dto.clientIp = clientIp;
     return await this.paymentService.createPaymentSession(dto, userId);
   }
 

@@ -72,4 +72,8 @@ export class CreateAccessCodeDto {
   @IsString()
   @IsOptional()
   cancelUrl?: string;
+
+  @IsString()
+  @IsOptional()
+  clientIp?: string;
 }

@@ -64,17 +64,12 @@ export class EwayService {
       this.configService.get<string>('FRONTEND_URL') ||
       'https://sunlitesolar.com.au';
 
-    // Ensure valid HTTPS redirect format for eWay Sandbox validation
-    const redirectUrl =
-      dto.redirectUrl ||
-      (frontendUrl.startsWith('https')
-        ? `${frontendUrl}/checkout/success`
-        : 'https://sunlitesolar.com.au/checkout/success');
-    const cancelUrl =
-      dto.cancelUrl ||
-      (frontendUrl.startsWith('https')
-        ? `${frontendUrl}/checkout/cancel`
-        : 'https://sunlitesolar.com.au/checkout/cancel');
+    const rawRedirect = dto.redirectUrl || frontendUrl;
+    const rawCancel = dto.cancelUrl || frontendUrl;
+
+    // eWay strictly rejects hash fragments (#...) in RedirectUrl/CancelUrl
+    const redirectUrl = rawRedirect.split('#')[0].replace(/\/$/, '');
+    const cancelUrl = rawCancel.split('#')[0].replace(/\/$/, '');
 
     if (this.ewayConfig.mockMode) {
       this.logger.warn(
@@ -123,6 +118,7 @@ export class EwayService {
           dto.invoiceDescription || 'Sunlite Solar Payment',
         CurrencyCode: dto.currencyCode || 'AUD',
       },
+      CustomerIP: dto.clientIp || '1.1.1.1',
       RedirectUrl: redirectUrl,
       CancelUrl: cancelUrl,
       Method: 'ProcessPayment',
