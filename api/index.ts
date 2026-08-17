@@ -15,7 +15,9 @@ async function bootstrapServerless() {
       new ExpressAdapter(expressApp),
     );
 
-    app.setGlobalPrefix('api');
+    app.setGlobalPrefix('api', {
+      exclude: ['/'],
+    });
 
     app.useGlobalPipes(
       new ValidationPipe({

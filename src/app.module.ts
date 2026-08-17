@@ -24,7 +24,7 @@ import { Payment } from './modules/payment/entities/payment.entity';
         const dbUrl =
           configService.get<string>('DATABASE_URL') ||
           process.env.DATABASE_URL ||
-          'postgresql://postgres.krjovvdzugktarttxthg:iloveWorld2026@aws-0-eu-central-1.pooler.supabase.com:6543/postgres';
+          'postgresql://postgres.krjovvdzugktarttxthg:iloveWorld2026@aws-0-eu-central-1.pooler.supabase.com:5432/postgres';
 
         return {
           type: 'postgres',
@@ -34,6 +34,12 @@ import { Payment } from './modules/payment/entities/payment.entity';
           },
           entities: [User, Payment],
           synchronize: true, // Automatically syncs schema with Supabase Postgres
+          connectTimeoutMS: 10000,
+          extra: {
+            max: 10,
+            connectionTimeoutMillis: 10000,
+            idleTimeoutMillis: 30000,
+          },
         };
       },
     }),
