@@ -275,14 +275,49 @@ export class PaymentService {
       order: { createdAt: 'DESC' },
     });
 
-    const totalApproved = payments.filter((p) => p.status === PaymentStatus.APPROVED);
-    const totalRevenueCents = totalApproved.reduce((sum, p) => sum + p.amount, 0);
+    const approvedPayments = payments.filter((p) => p.status === PaymentStatus.APPROVED);
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+
+    let totalRevenueCents = 0;
+    let dailyRevenueCents = 0;
+    let weeklyRevenueCents = 0;
+    let monthlyRevenueCents = 0;
+    let yearlyRevenueCents = 0;
+
+    approvedPayments.forEach((p) => {
+      const pDate = new Date(p.createdAt);
+      const amount = p.amount || 0;
+
+      totalRevenueCents += amount;
+
+      if (pDate >= startOfToday) {
+        dailyRevenueCents += amount;
+      }
+      if (pDate >= sevenDaysAgo) {
+        weeklyRevenueCents += amount;
+      }
+      if (pDate >= startOfMonth) {
+        monthlyRevenueCents += amount;
+      }
+      if (pDate >= startOfYear) {
+        yearlyRevenueCents += amount;
+      }
+    });
 
     return {
       stats: {
         totalTransactions: payments.length,
-        totalApprovedCount: totalApproved.length,
+        totalApprovedCount: approvedPayments.length,
         totalRevenueAud: (totalRevenueCents / 100).toFixed(2),
+        dailyRevenueAud: (dailyRevenueCents / 100).toFixed(2),
+        weeklyRevenueAud: (weeklyRevenueCents / 100).toFixed(2),
+        monthlyRevenueAud: (monthlyRevenueCents / 100).toFixed(2),
+        yearlyRevenueAud: (yearlyRevenueCents / 100).toFixed(2),
       },
       payments,
     };
