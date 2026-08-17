@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../src/app.module';
 import { ValidationPipe } from '@nestjs/common';
@@ -40,6 +41,15 @@ async function bootstrapServerless() {
 }
 
 export default async function handler(req: any, res: any) {
-  const server = await bootstrapServerless();
-  return server(req, res);
+  try {
+    const server = await bootstrapServerless();
+    return server(req, res);
+  } catch (error: any) {
+    console.error('Vercel Serverless NestJS Boot Error:', error);
+    return res.status(500).json({
+      statusCode: 500,
+      message: 'Serverless NestJS Boot Failure',
+      error: error?.message || String(error),
+    });
+  }
 }
