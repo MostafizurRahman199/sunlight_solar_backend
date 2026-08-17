@@ -34,11 +34,13 @@ import { Payment } from './modules/payment/entities/payment.entity';
           },
           entities: [User, Payment],
           synchronize: true, // Automatically syncs schema with Supabase Postgres
-          connectTimeoutMS: 10000,
+          retryAttempts: 1,
+          retryDelay: 1000,
+          connectTimeoutMS: 5000,
           extra: {
-            max: 10,
-            connectionTimeoutMillis: 10000,
-            idleTimeoutMillis: 30000,
+            max: 5,
+            connectionTimeoutMillis: 5000,
+            idleTimeoutMillis: 10000,
           },
         };
       },

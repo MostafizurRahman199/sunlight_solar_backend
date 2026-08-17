@@ -13,6 +13,9 @@ async function bootstrapServerless() {
     const app = await NestFactory.create(
       AppModule,
       new ExpressAdapter(expressApp),
+      {
+        abortOnError: false,
+      },
     );
 
     app.setGlobalPrefix('api', {
