@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { EwayService } from './providers/eway.service';
@@ -198,21 +198,24 @@ export class PaymentService {
       this.logger.log(
         `✅ [DIRECT PAYMENT APPROVED & SAVED] TxID: #${result.TransactionID} | Amount: $${formattedAmount} AUD`,
       );
+      return {
+        success: true,
+        transactionId: result.TransactionID,
+        responseCode: result.ResponseCode || '00',
+        responseMessage: result.ResponseMessage || 'Approved',
+        invoiceNumber: payment.invoiceNumber,
+        amount: result.TotalAmount ?? dto.amount,
+        raw: result,
+      };
     } else {
+      const errorDetails = result.Errors || result.ResponseMessage || 'Payment declined by bank/gateway.';
       this.logger.error(
-        `❌ [DIRECT PAYMENT DECLINED] Response: ${result.ResponseCode} - ${result.ResponseMessage}`,
+        `❌ [DIRECT PAYMENT DECLINED] Response: ${result.ResponseCode || 'N/A'} - ${errorDetails}`,
+      );
+      throw new BadRequestException(
+        `eWay Payment Declined (${errorDetails}). Please check card details or use Hosted Payment Page.`,
       );
     }
-
-    return {
-      success: isApproved,
-      transactionId: result.TransactionID,
-      responseCode: result.ResponseCode,
-      responseMessage: result.ResponseMessage,
-      invoiceNumber: payment.invoiceNumber,
-      amount: result.TotalAmount,
-      raw: result,
-    };
   }
 
   /**

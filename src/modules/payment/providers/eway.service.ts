@@ -64,8 +64,17 @@ export class EwayService {
       this.configService.get<string>('FRONTEND_URL') ||
       'https://sunlitesolar.com.au';
 
-    const redirectUrl = dto.redirectUrl || `${frontendUrl}/checkout/success`;
-    const cancelUrl = dto.cancelUrl || `${frontendUrl}/checkout/cancel`;
+    // Ensure valid HTTPS redirect format for eWay Sandbox validation
+    const redirectUrl =
+      dto.redirectUrl ||
+      (frontendUrl.startsWith('https')
+        ? `${frontendUrl}/checkout/success`
+        : 'https://sunlitesolar.com.au/checkout/success');
+    const cancelUrl =
+      dto.cancelUrl ||
+      (frontendUrl.startsWith('https')
+        ? `${frontendUrl}/checkout/cancel`
+        : 'https://sunlitesolar.com.au/checkout/cancel');
 
     if (this.ewayConfig.mockMode) {
       this.logger.warn(
@@ -120,24 +129,55 @@ export class EwayService {
       TransactionType: 'Purchase',
     };
 
-    try {
-      const endpoint = `${this.ewayConfig.baseUrl}/AccessCodes`;
-      const response = await firstValueFrom(
-        this.httpService.post<IEwayAccessCodeResponse>(endpoint, payload, {
-          headers: this.getAuthHeader(),
-        }),
-      );
-      return response.data;
-    } catch (error: any) {
-      this.logger.error(
-        'Failed to generate eWay AccessCode',
-        error?.response?.data || error.message,
-      );
-      throw new BadRequestException(
-        error?.response?.data?.Errors ||
-          'Failed to communicate with eWay Payment Gateway.',
-      );
-    }
+    const executeRequest = async (attempt = 1): Promise<IEwayAccessCodeResponse> => {
+      try {
+        const endpoint = `${this.ewayConfig.baseUrl}/AccessCodes`;
+
+        const response = await firstValueFrom(
+          this.httpService.post<IEwayAccessCodeResponse>(endpoint, payload, {
+            headers: this.getAuthHeader(),
+            timeout: 15000,
+          }),
+        );
+        const data = response.data;
+        this.logger.log(`📥 [EWAY ACCESS CODE RAW RESPONSE]: ${JSON.stringify(data)}`);
+
+        const defaultSharedPageHost =
+          this.ewayConfig.mode === 'production'
+            ? 'https://secure.ewaypayments.com'
+            : 'https://secure-au.sandbox.ewaypayments.com';
+
+        const rawAccessCode = data.AccessCode;
+        const sharedUrl =
+          data.FormUrl ||
+          data.SharedPaymentUrl ||
+          (data as any).SharedPageUrl ||
+          `${defaultSharedPageHost}/sharedpage/sharedpayment?AccessCode=${rawAccessCode}`;
+
+        this.logger.log(`🔗 [EWAY FINAL SHARED FORM URL]: ${sharedUrl}`);
+
+        return {
+          ...data,
+          FormUrl: sharedUrl,
+          SharedPaymentUrl: sharedUrl,
+        };
+      } catch (error: any) {
+        if (attempt === 1 && (error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT')) {
+          this.logger.warn(`Network glitch (${error.code}). Retrying eWay API request...`);
+          return executeRequest(2);
+        }
+        this.logger.error(
+          'Failed to generate eWay AccessCode',
+          error?.response?.data || error.message,
+        );
+        throw new BadRequestException(
+          error?.response?.data?.Errors ||
+            'Failed to communicate with eWay Payment Gateway.',
+        );
+      }
+    };
+
+    return executeRequest();
   }
 
   /**
@@ -235,9 +275,23 @@ export class EwayService {
       const response = await firstValueFrom(
         this.httpService.post<IEwayTransactionResult>(endpoint, payload, {
           headers: this.getAuthHeader(),
+          timeout: 15000,
         }),
       );
-      return response.data;
+      const data = response.data;
+      this.logger.log(`📥 [DIRECT PAYMENT API RAW RESPONSE]: ${JSON.stringify(data)}`);
+
+      // Normalize fields if returned inside data.Payment or data root
+      const totalAmount = data.TotalAmount ?? (data as any).Payment?.TotalAmount ?? dto.amount;
+      const responseCode = data.ResponseCode ?? (data as any).Payment?.ResponseCode ?? 'N/A';
+      const responseMessage = data.ResponseMessage ?? (data as any).Payment?.ResponseMessage ?? (data.Errors || 'Unknown Status');
+
+      return {
+        ...data,
+        TotalAmount: totalAmount,
+        ResponseCode: responseCode,
+        ResponseMessage: responseMessage,
+      };
     } catch (error: any) {
       this.logger.error(
         'Direct Payment process failed',
