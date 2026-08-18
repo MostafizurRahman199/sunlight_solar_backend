@@ -7,8 +7,10 @@ import ewayConfig from './config/eway.config';
 import { PaymentModule } from './modules/payment/payment.module';
 import { UserModule } from './modules/user/user.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { ContactModule } from './modules/contact/contact.module';
 import { User } from './modules/user/entities/user.entity';
 import { Payment } from './modules/payment/entities/payment.entity';
+import { Contact } from './modules/contact/entities/contact.entity';
 
 @Module({
   imports: [
@@ -32,15 +34,16 @@ import { Payment } from './modules/payment/entities/payment.entity';
           ssl: {
             rejectUnauthorized: false,
           },
-          entities: [User, Payment],
+          entities: [User, Payment, Contact],
           synchronize: true, // Automatically syncs schema with Supabase Postgres
-          retryAttempts: 1,
-          retryDelay: 1000,
-          connectTimeoutMS: 5000,
+          retryAttempts: 10,
+          retryDelay: 3000,
           extra: {
+            ssl: {
+              rejectUnauthorized: false,
+            },
             max: 5,
-            connectionTimeoutMillis: 5000,
-            idleTimeoutMillis: 10000,
+            connectionTimeoutMillis: 30000,
           },
         };
       },
@@ -48,6 +51,7 @@ import { Payment } from './modules/payment/entities/payment.entity';
     UserModule,
     AuthModule,
     PaymentModule,
+    ContactModule,
   ],
   controllers: [AppController],
   providers: [AppService],
